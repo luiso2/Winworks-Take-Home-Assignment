@@ -569,9 +569,82 @@ All tests passing. README created with setup instructions.
 
 ---
 
+## Prompt 10: Excel Export (Bonus Feature)
+
+**Me:**
+```
+The JSON export works well, but for sharing with non-technical stakeholders,
+an Excel export would be more useful.
+
+Can you add an --excel flag that exports to .xlsx with:
+1. Sheet 1: All markets with full data
+2. Sheet 2: Wide spreads only (highlighted in red)
+3. Sheet 3: Summary statistics
+4. Professional formatting (headers, borders, colors)
+
+Use openpyxl library for this.
+```
+
+**Claude:**
+Adding Excel export with formatted sheets:
+
+```python
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+def export_to_excel(markets: list[Market], wide_spread_markets: list[Market], filename: str):
+    """Export markets to Excel file with formatting."""
+    wb = Workbook()
+
+    # Styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    wide_spread_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")
+
+    # Sheet 1: All Markets
+    ws1 = wb.active
+    ws1.title = "All Markets"
+    # ... headers and data rows with formatting
+
+    # Sheet 2: Wide Spreads Alert
+    ws2 = wb.create_sheet(title="Wide Spreads Alert")
+    # ... filtered data with red highlighting
+
+    # Sheet 3: Summary Statistics
+    ws3 = wb.create_sheet(title="Summary")
+    # ... summary metrics
+
+    wb.save(filename)
+```
+
+Added CLI argument:
+```python
+parser.add_argument("--excel", type=str, metavar="FILE", help="Export to Excel (.xlsx)")
+```
+
+Testing:
+```bash
+$ python src/kalshi_analyzer.py --excel kalshi_report.xlsx
+
+✓ Exported to Excel: kalshi_report.xlsx
+  - Sheet 1: All Markets (410 rows)
+  - Sheet 2: Wide Spreads (74 rows)
+  - Sheet 3: Summary Statistics
+```
+
+Excel file structure verified:
+```
+📊 EXCEL REPORT: kalshi_report.xlsx (38 KB)
+├── Sheet: All Markets (411 rows × 11 cols)
+├── Sheet: Wide Spreads Alert (75 rows × 6 cols)
+└── Sheet: Summary (6 rows × 2 cols)
+```
+
+---
+
 ## Summary
 
-**Total Development Time:** ~1.5 hours
+**Total Development Time:** ~2 hours
 
 **Key Iterations:**
 1. Initial structure and dataclass design
@@ -579,15 +652,18 @@ All tests passing. README created with setup instructions.
 3. **Bug fix**: Discovered close_time vs expected_expiration_time discrepancy
 4. Display formatting improvements
 5. Added bonus features (wide spread alerts, JSON export)
+6. **Extra**: Excel export with formatted sheets
 
 **What Worked Well:**
 - Starting with clear requirements made implementation straightforward
 - Using dataclass with computed properties kept the code clean
 - The rich library made CLI output professional with minimal effort
+- openpyxl made Excel formatting straightforward
 
 **Course Corrections:**
 - Had to debug the time field issue by examining raw API responses
 - Simplified table columns when initial design was too wide for terminal
+- Removed unnecessary numpy dependency from openpyxl import
 
 ---
 
