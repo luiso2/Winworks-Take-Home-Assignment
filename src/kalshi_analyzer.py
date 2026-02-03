@@ -20,6 +20,8 @@ from rich.panel import Panel
 from rich import box
 from dataclasses import dataclass, asdict
 from typing import Optional
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # Kalshi public API base URL
 KALSHI_API_BASE = "https://api.elections.kalshi.com/trade-api/v2"
@@ -392,6 +394,149 @@ def export_to_json(markets: list[Market], filename: str):
     console.print(f"[green]✓ Exported {len(data)} markets to {filename}[/green]")
 
 
+def export_to_excel(markets: list[Market], wide_spread_markets: list[Market], filename: str):
+    """
+    Export markets to Excel file with formatting.
+
+    Creates two sheets:
+    - All Markets: Complete market data
+    - Wide Spreads: Markets with spread > 10% (highlighted)
+    """
+    wb = Workbook()
+
+    # Styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    wide_spread_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")
+    money_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # Sheet 1: All Markets
+    ws1 = wb.active
+    ws1.title = "All Markets"
+
+    headers = ["Ticker", "Market", "Yes Bid", "Yes Ask", "No Bid", "No Ask",
+               "Spread %", "Wide Spread", "Expires In", "Hours Left", "Volume"]
+
+    # Write headers
+    for col, header in enumerate(headers, 1):
+        cell = ws1.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+
+    # Write data
+    for row_num, market in enumerate(markets, 2):
+        data_row = [
+            market.ticker,
+            market.title[:60] + "..." if len(market.title) > 60 else market.title,
+            f"${market.yes_bid:.2f}",
+            f"${market.yes_ask:.2f}",
+            f"${market.no_bid:.2f}",
+            f"${market.no_ask:.2f}",
+            f"{market.spread_percent:.1f}%",
+            "YES" if market.is_wide_spread else "NO",
+            market.time_until_close_str,
+            round(market.hours_until_close, 1),
+            market.volume,
+        ]
+
+        for col, value in enumerate(data_row, 1):
+            cell = ws1.cell(row=row_num, column=col, value=value)
+            cell.border = thin_border
+
+            # Highlight wide spread rows
+            if market.is_wide_spread:
+                cell.fill = wide_spread_fill
+
+            # Highlight money columns
+            if col in [3, 4, 5, 6]:
+                cell.alignment = Alignment(horizontal='right')
+
+    # Adjust column widths
+    ws1.column_dimensions['A'].width = 30
+    ws1.column_dimensions['B'].width = 50
+    ws1.column_dimensions['C'].width = 10
+    ws1.column_dimensions['D'].width = 10
+    ws1.column_dimensions['E'].width = 10
+    ws1.column_dimensions['F'].width = 10
+    ws1.column_dimensions['G'].width = 10
+    ws1.column_dimensions['H'].width = 12
+    ws1.column_dimensions['I'].width = 12
+    ws1.column_dimensions['J'].width = 10
+    ws1.column_dimensions['K'].width = 10
+
+    # Sheet 2: Wide Spreads Only
+    ws2 = wb.create_sheet(title="Wide Spreads Alert")
+
+    headers2 = ["Ticker", "Market", "Spread %", "Bid → Ask", "Expires", "Volume"]
+
+    for col, header in enumerate(headers2, 1):
+        cell = ws2.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = PatternFill(start_color="C62828", end_color="C62828", fill_type="solid")
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+
+    for row_num, market in enumerate(wide_spread_markets, 2):
+        data_row = [
+            market.ticker,
+            market.title[:50] + "..." if len(market.title) > 50 else market.title,
+            f"{market.spread_percent:.1f}%",
+            f"${market.yes_bid:.2f} → ${market.yes_ask:.2f}",
+            market.time_until_close_str,
+            market.volume,
+        ]
+
+        for col, value in enumerate(data_row, 1):
+            cell = ws2.cell(row=row_num, column=col, value=value)
+            cell.border = thin_border
+            cell.fill = wide_spread_fill
+
+    ws2.column_dimensions['A'].width = 30
+    ws2.column_dimensions['B'].width = 45
+    ws2.column_dimensions['C'].width = 10
+    ws2.column_dimensions['D'].width = 20
+    ws2.column_dimensions['E'].width = 10
+    ws2.column_dimensions['F'].width = 10
+
+    # Sheet 3: Summary Statistics
+    ws3 = wb.create_sheet(title="Summary")
+
+    summary_data = [
+        ["Metric", "Value"],
+        ["Total Markets Analyzed", len(markets)],
+        ["Wide Spread Markets (>10%)", len(wide_spread_markets)],
+        ["Average Spread", f"{sum(m.spread_percent for m in markets) / len(markets):.2f}%" if markets else "0%"],
+        ["Total Volume", sum(m.volume for m in markets)],
+        ["Report Generated", pendulum.now().format("YYYY-MM-DD HH:mm:ss UTC")],
+    ]
+
+    for row_num, row_data in enumerate(summary_data, 1):
+        for col, value in enumerate(row_data, 1):
+            cell = ws3.cell(row=row_num, column=col, value=value)
+            cell.border = thin_border
+            if row_num == 1:
+                cell.font = header_font
+                cell.fill = header_fill
+
+    ws3.column_dimensions['A'].width = 30
+    ws3.column_dimensions['B'].width = 25
+
+    # Save
+    wb.save(filename)
+    console.print(f"[green]✓ Exported to Excel: {filename}[/green]")
+    console.print(f"[dim]  - Sheet 1: All Markets ({len(markets)} rows)[/dim]")
+    console.print(f"[dim]  - Sheet 2: Wide Spreads ({len(wide_spread_markets)} rows)[/dim]")
+    console.print(f"[dim]  - Sheet 3: Summary Statistics[/dim]")
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Analyze Kalshi prediction markets")
@@ -400,6 +545,7 @@ def main():
     parser.add_argument("--min-volume", type=int, default=0, help="Minimum volume filter")
     parser.add_argument("--wide-only", action="store_true", help="Show only wide spread markets")
     parser.add_argument("--json", type=str, metavar="FILE", help="Export results to JSON file")
+    parser.add_argument("--excel", type=str, metavar="FILE", help="Export results to Excel file (.xlsx)")
     args = parser.parse_args()
 
     console.print(Panel.fit(
@@ -457,6 +603,16 @@ def main():
         # Step 8: Export to JSON if requested
         if args.json:
             export_to_json(primary_markets if primary_markets else markets, args.json)
+
+        # Step 9: Export to Excel if requested
+        if args.excel:
+            wide_spread_list = [m for m in markets if m.is_wide_spread]
+            wide_spread_list.sort(key=lambda m: m.spread, reverse=True)
+            export_to_excel(
+                primary_markets if primary_markets else markets,
+                wide_spread_list,
+                args.excel
+            )
 
         console.print("\n[green bold]✓ Analysis complete![/green bold]")
         console.print("[dim]Data fetched from Kalshi Public API at " +

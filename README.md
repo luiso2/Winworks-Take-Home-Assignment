@@ -41,6 +41,12 @@ python src/kalshi_analyzer.py --limit 1000
 
 # Filter by minimum volume
 python src/kalshi_analyzer.py --min-volume 100
+
+# Export to Excel (with formatted sheets)
+python src/kalshi_analyzer.py --excel report.xlsx
+
+# Export to JSON
+python src/kalshi_analyzer.py --json markets.json
 ```
 
 ### Command Line Options
@@ -50,6 +56,8 @@ python src/kalshi_analyzer.py --min-volume 100
 | `--hours` | 24 | Time window for expiring markets |
 | `--limit` | 500 | Maximum markets to fetch from API |
 | `--min-volume` | 0 | Filter markets by minimum volume |
+| `--json FILE` | - | Export results to JSON file |
+| `--excel FILE` | - | Export results to Excel file (.xlsx) |
 
 ## Output Sections
 
@@ -102,6 +110,7 @@ is_wide_spread = spread >= 0.10  # 10% threshold
 - `rich` - Terminal formatting and tables
 - `pendulum` - Date/time handling
 - `python-dotenv` - Environment configuration (optional)
+- `openpyxl` - Excel file generation
 
 ## Limitations
 
